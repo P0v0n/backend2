@@ -7,10 +7,22 @@ import nodemailer from "nodemailer";
 const JWT_SECRET = process.env.JWT_SECRET || "supersecretkey";
 const JWT_EXPIRES_IN = "7d";
 
+const maskEmail = (email = "") => {
+  const [name = "", domain = ""] = String(email).split("@");
+  if (!name || !domain) return "";
+  if (name.length <= 2) return `${name[0] || "*"}***@${domain}`;
+  return `${name[0]}***${name.slice(-1)}@${domain}`;
+};
+
 // 🔑 helper to create JWT
 const createToken = (user) => {
   return jwt.sign(
-    { id: user._id, email: user.email, role: user.role },
+    {
+      id: user._id,
+      email: user.email,
+      role: user.role,
+      name: user.name || "",
+    },
     JWT_SECRET,
     { expiresIn: JWT_EXPIRES_IN }
   );
@@ -36,7 +48,12 @@ export const signup = async (req, res) => {
     res.json({
       success: true,
       message: "User registered successfully",
-      user: { id: user._id, email: user.email, role: user.role },
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+      },
     });
   } catch (err) {
     console.error("Signup Error:", err);
@@ -61,7 +78,12 @@ export const signin = async (req, res) => {
     res.json({
       success: true,
       token,
-      user: { id: user._id, email: user.email, role: user.role },
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+      },
     });
   } catch (err) {
     console.error("Signin Error:", err);
@@ -86,16 +108,18 @@ export const forgotPassword = async (req, res) => {
 
     // Send email via nodemailer
     const transporter = nodemailer.createTransport({
-      service: "gmail",
+      host: process.env.SMTP_HOST || "smtp.gmail.com",
+      port: Number(process.env.SMTP_PORT || 587),
+      secure: String(process.env.SMTP_SECURE || "false").toLowerCase() === "true",
       auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASS,
+        user: process.env.SMTP_USER,
+        pass: process.env.SMTP_PASS,
       },
     });
 
     await transporter.sendMail({
       to: user.email,
-      from: process.env.EMAIL_USER,
+      from: process.env.SMTP_USER,
       subject: "Password Reset",
       html: `<p>Click <a href="${resetURL}">here</a> to reset your password. This link expires in 1 hour.</p>`,
     });
@@ -119,7 +143,11 @@ export const resetPassword = async (req, res) => {
     });
 
     if (!user)
-      return res.status(400).json({ success: false, message: "Invalid or expired token" });
+      return res.status(400).json({
+        success: false,
+        message: "Invalid or expired token",
+        code: "TOKEN_INVALID",
+      });
 
     user.password = newPassword;
     user.resetPasswordToken = undefined;
@@ -130,5 +158,31 @@ export const resetPassword = async (req, res) => {
   } catch (err) {
     console.error("Reset Password Error:", err);
     res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+export const validateResetToken = async (req, res) => {
+  try {
+    const { token } = req.params;
+    const user = await User.findOne({
+      resetPasswordToken: token,
+      resetPasswordExpires: { $gt: Date.now() },
+    }).select("email");
+
+    if (!user) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid or expired token",
+        code: "TOKEN_INVALID",
+      });
+    }
+
+    return res.json({
+      success: true,
+      emailMasked: maskEmail(user.email),
+    });
+  } catch (err) {
+    console.error("Validate Reset Token Error:", err);
+    return res.status(500).json({ success: false, message: err.message });
   }
 };
