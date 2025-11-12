@@ -21,9 +21,19 @@ jobs:
 
       - name: Deploy to server
         run: |
-          ssh ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} << 'EOF'
-            cd ~/backend/backend2
-            git pull origin dev-cs
+          ssh -o StrictHostKeyChecking=no ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} << 'EOF'
+            set -e
+            cd /home/deploy/backend2
+
+            echo "📦 Pulling latest code..."
+            git fetch origin dev-cs
+            git reset --hard origin/dev-cs
+
+            echo "📂 Installing dependencies..."
             npm install --production
-            pm2 restart em_backend-dev
+
+            echo "🚀 Restarting PM2 process..."
+            pm2 restart em_backend-dev || pm2 start npm --name "em_backend-dev" -- run start
+
+            pm2 save
           EOF
