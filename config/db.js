@@ -3,7 +3,7 @@ import mongoose from 'mongoose';
 
 
 
-const MONGODB_URI = process.env.MONGODB_URI || "mongodb+srv://listing-admin:em%40123@testcluster.zx6b6.mongodb.net/social-listing?retryWrites=true&w=majority";
+const MONGODB_URI = process.env.MONGODB_URI;
 
 
   // if (!MONGODB_URI) {
