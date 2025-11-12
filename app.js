@@ -15,7 +15,7 @@ const app = express();
 // Body parser size limit configurable via env var to avoid "PayloadTooLargeError"
 // Default is kept small to avoid accidental DoS from huge requests.
 const BODY_PARSER_LIMIT = process.env.BODY_PARSER_LIMIT || "1mb";
-const allowedOrigins = (process.env.ALLOWED_ORIGINS || "http://localhost:3000");
+const allowedOrigins = (process.env.ALLOWED_ORIGINS || "http://eminsights.in" || "https://eminsights.in");
 const allowedOriginList = allowedOrigins
   .split(",")
   .map((origin) => origin.trim())
