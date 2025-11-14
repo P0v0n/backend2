@@ -4,15 +4,16 @@ import { searchRecent } from "../controllers/search.recent.controller.js";
 import { searchHistorical } from "../controllers/search.historical.controller.js";
 import { getAllKeywordsByBrand, getPostsByBrand } from "../controllers/dashboard.controllers.js";
 import { runSearch, runSearchForBrand } from "../controllers/search.brand.controller.js";
+import { protect } from "../middleware/auth.js";
 
 const router = express.Router();    
 
-router.post("/recent", searchRecent);
-router.post("/run", runSearchForBrand);
-router.post("/brandsearch" , runSearch)
-router.post("/historical", searchHistorical);
+router.post("/recent",protect, searchRecent);
+router.post("/run", protect ,runSearchForBrand);
+router.post("/brandsearch" ,protect, runSearch)
+router.post("/historical",protect, searchHistorical);
 
-router.get("/data", getPostsByBrand)
+router.get("/data",protect, getPostsByBrand)
 
-router.get("/keywords" , getAllKeywordsByBrand);
+router.get("/keywords" , protect, getAllKeywordsByBrand);
 export default router;
