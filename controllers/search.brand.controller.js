@@ -105,6 +105,106 @@ export const runSearchForBrand = async (req, res) => {
 };
 
 // search.controller.js
+//frequency based api calling
+
+export const runSearchForGroup = async (req, res) => {
+  try {
+    const { brandName, groupId } = req.body;
+
+    const brand = await Brand.findOne({ brandName });
+    if (!brand)
+      return res.status(404).json({ success: false, message: "Brand not found" });
+
+    const group = brand.keywordGroups.id(groupId);
+    if (!group)
+      return res.status(404).json({ success: false, message: "Keyword Group not found" });
+
+    if (group.status === "paused")
+      return res.status(400).json({ success: false, message: "Group is paused" });
+
+    const {
+      keywords,
+      includeKeywords,
+      excludeKeywords,
+      platforms,
+      language,
+      country,
+    } = group;
+
+    const now = new Date();
+    const startDate = new Date(now.getTime() - 60 * 60 * 1000);
+    const endDate = new Date(now.getTime() - 10 * 1000);
+
+    const allPosts = [];
+
+    for (const platform of platforms) {
+      for (const keyword of keywords) {
+        let results = [];
+
+        if (platform === "youtube") {
+          results = await fetchYouTubeSearch(keyword, {
+            includeKeywords,
+            excludeKeywords,
+            language,
+            country,
+            startDate,
+            endDate,
+          });
+        }
+
+        if (platform === "twitter") {
+          results = await fetchTwitterSearch(keyword, {
+            includeKeywords,
+            excludeKeywords,
+            startDate,
+            endDate,
+          });
+        }
+
+        if (platform === "reddit") {
+          results = await fetchRedditSearch(keyword, {
+            includeKeywords,
+            excludeKeywords,
+            startDate,
+            endDate,
+          });
+        }
+
+        const docs = results.map((r) => ({
+          ...r,
+          brand: brand._id,
+          groupId: group._id,
+          platform,
+          keyword,
+          createdAt: new Date(r.publishedAt || Date.now()),
+        }));
+
+        if (docs.length) {
+          await SocialPost.insertMany(docs, { ordered: false });
+          allPosts.push(...docs);
+        }
+      }
+    }
+
+    // Update group state
+    group.lastRun = now;
+    group.nextRun = computeNextRun(group.frequency);
+
+    await brand.save();
+
+    res.json({
+      success: true,
+      message: `Group executed`,
+      groupName: group.groupName,
+      fetched: allPosts.length,
+    });
+  } catch (err) {
+    console.error("Group run error:", err);
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+
 
 
 export const runSearch = async (req, res) => {

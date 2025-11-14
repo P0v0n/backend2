@@ -367,3 +367,72 @@ export const deleteBrand = async (req, res) => {
     res.status(500).json({ success: false, message: err.message });
   }
 };
+
+//seprate keyword group 
+export const addKeywordGroup = async (req, res) => {
+  try {
+    const {
+      brandName,
+      groupName,
+      keywords,
+      includeKeywords = [],
+      excludeKeywords = [],
+      platforms = [],
+      language = "en",
+      country = "IN",
+      frequency = "30m",
+      assignedUsers = []
+    } = req.body;
+
+    if (!brandName || !groupName || !keywords?.length) {
+      return res.status(400).json({
+        success: false,
+        message: "brandName, groupName, and keywords are required"
+      });
+    }
+
+    const brand = await Brand.findOne({ brandName });
+    if (!brand) {
+      return res.status(404).json({ success: false, message: "Brand not found" });
+    }
+
+    // Prevent duplicate keyword group names inside the brand
+    const exists = brand.keywordGroups.find(
+      (g) => g.groupName.toLowerCase() === groupName.toLowerCase()
+    );
+
+    if (exists) {
+      return res.status(400).json({
+        success: false,
+        message: `Keyword group '${groupName}' already exists for this brand`
+      });
+    }
+
+    // PUSH NEW KEYWORD GROUP INTO BRAND
+    brand.keywordGroups.push({
+      groupName,
+      keywords,
+      includeKeywords,
+      excludeKeywords,
+      platforms,
+      language,
+      country,
+      frequency,
+      assignedUsers,
+      status: "running",
+      lastRun: null,
+      nextRun: new Date()
+    });
+
+    await brand.save();
+
+    res.json({
+      success: true,
+      message: "Keyword group added successfully",
+      brand
+    });
+  } catch (err) {
+    console.error("Add Keyword Group Error:", err);
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
