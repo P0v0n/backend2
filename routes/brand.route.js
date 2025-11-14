@@ -6,7 +6,6 @@ import {
   getBrands,
   getBrandsByUser,
   deleteBrand,
-  getAssignedBrands,
 } from "../controllers/brand.controller.js";
 import { protect, isAdmin } from "../middleware/auth.js";
 import { canManageBrand } from "../middleware/brandAccess.js";
@@ -21,6 +20,6 @@ router.post("/delete", protect, isAdmin, deleteBrand);
 router.post("/configure", protect, canManageBrand, configureBrand);
 
 router.get("/user/:email", protect, getBrandsByUser);
-router.get("/assigned/:email", protect, getAssignedBrands);
+// router.get("/assigned/:email", protect, getAssignedBrands);
 
 export default router;
