@@ -5,7 +5,14 @@ const keywordGroupSchema = new mongoose.Schema(
   {
     name: { type: String, required: true },
     keywords: [{ type: String }],
+    includeKeywords: [{ type: String }],
+    excludeKeywords: [{ type: String }],
     assignedUsers: [{ type: String }],
+    platforms: [{ type: String }],
+    language: { type: String },
+    country: { type: String },
+    frequency: { type: String },
+    paused: { type: Boolean, default: false },
   },
   { _id: false }
 );

@@ -15,19 +15,58 @@ const cleanKeywordGroups = (keywordGroups) => {
   });
 
   return filtered
-    .map((group) => ({
-      name: String(group.name || "").trim(),
-      keywords: Array.isArray(group.keywords)
-        ? group.keywords
-            .map((k) => String(k || "").trim())
-            .filter((k) => k.length > 0)
-        : [],
-      assignedUsers: Array.isArray(group.assignedUsers)
-        ? group.assignedUsers
-            .map((u) => String(u || "").trim().toLowerCase())
-            .filter((u) => u.length > 0)
-        : [],
-    }))
+    .map((group) => {
+      const cleaned = {
+        name: String(group.name || "").trim(),
+        keywords: Array.isArray(group.keywords)
+          ? group.keywords
+              .map((k) => String(k || "").trim())
+              .filter((k) => k.length > 0)
+          : [],
+        includeKeywords: Array.isArray(group.includeKeywords)
+          ? group.includeKeywords
+              .map((k) => String(k || "").trim())
+              .filter((k) => k.length > 0)
+          : [],
+        excludeKeywords: Array.isArray(group.excludeKeywords)
+          ? group.excludeKeywords
+              .map((k) => String(k || "").trim())
+              .filter((k) => k.length > 0)
+          : [],
+        assignedUsers: Array.isArray(group.assignedUsers)
+          ? group.assignedUsers
+              .map((u) => String(u || "").trim().toLowerCase())
+              .filter((u) => u.length > 0)
+          : [],
+        platforms: Array.isArray(group.platforms)
+          ? group.platforms
+              .map((p) => String(p || "").trim())
+              .filter((p) => p.length > 0)
+          : [],
+      };
+
+      // Add optional fields if present
+      if (group.language) cleaned.language = String(group.language).trim();
+      if (Array.isArray(group.languages) && group.languages.length > 0) {
+        cleaned.languages = group.languages
+          .map((lang) => String(lang || "").trim())
+          .filter(Boolean);
+        if (!cleaned.language) cleaned.language = cleaned.languages[0];
+      }
+
+      if (group.country) cleaned.country = String(group.country).trim();
+      if (Array.isArray(group.countries) && group.countries.length > 0) {
+        cleaned.countries = group.countries
+          .map((country) => String(country || "").trim())
+          .filter(Boolean);
+        if (!cleaned.country) cleaned.country = cleaned.countries[0];
+      }
+
+      if (group.frequency) cleaned.frequency = String(group.frequency).trim();
+      if (typeof group.paused === "boolean") cleaned.paused = group.paused;
+
+      return cleaned;
+    })
     .filter((group) => group.name.length > 0);
 };
 
@@ -330,6 +369,132 @@ export const getAssignedBrands = async (req, res) => {
     res.json({ success: true, brands, count: brands.length });
   } catch (err) {
     console.error("Error fetching assigned brands:", err);
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// Add or update a keyword group for a brand
+export const addKeywordGroup = async (req, res) => {
+  try {
+    const {
+      brandName,
+      groupName,
+      originalGroupName,
+      keywords = [],
+      includeKeywords = [],
+      excludeKeywords = [],
+      platforms = [],
+      language,
+      country,
+      frequency,
+      assignedUsers = [],
+    } = req.body;
+
+    // Validation
+    if (!brandName) {
+      return res
+        .status(400)
+        .json({ success: false, message: "brandName is required" });
+    }
+
+    if (!groupName || String(groupName).trim().length === 0) {
+      return res
+        .status(400)
+        .json({ success: false, message: "groupName is required" });
+    }
+
+    // Find the brand
+    const brandFilter = {
+      brandName: { $regex: new RegExp(`^${String(brandName).trim()}$`, "i") },
+    };
+
+    const brand = await Brand.findOne(brandFilter);
+
+    if (!brand) {
+      return res
+        .status(404)
+        .json({ success: false, message: `Brand "${brandName}" not found` });
+    }
+
+    const normalizeName = (val) => String(val || "").trim().toLowerCase();
+    const targetName = normalizeName(originalGroupName) || normalizeName(groupName);
+
+    // Prepare the keyword group object
+    const newGroup = {
+      name: String(groupName).trim(),
+      keywords: Array.isArray(keywords)
+        ? keywords.map((k) => String(k || "").trim()).filter(Boolean)
+        : [],
+      includeKeywords: Array.isArray(includeKeywords)
+        ? includeKeywords.map((k) => String(k || "").trim()).filter(Boolean)
+        : [],
+      excludeKeywords: Array.isArray(excludeKeywords)
+        ? excludeKeywords.map((k) => String(k || "").trim()).filter(Boolean)
+        : [],
+      assignedUsers: Array.isArray(assignedUsers)
+        ? assignedUsers
+            .map((u) => String(u || "").trim().toLowerCase())
+            .filter(Boolean)
+        : [],
+      platforms: Array.isArray(platforms)
+        ? platforms.map((p) => String(p || "").trim()).filter(Boolean)
+        : [],
+    };
+
+    // Add optional fields if provided
+    if (language) newGroup.language = String(language).trim();
+    if (country) newGroup.country = String(country).trim();
+    if (frequency) newGroup.frequency = String(frequency).trim();
+
+    // Check if group with this name already exists
+    const keywordGroups = Array.isArray(brand.keywordGroups)
+      ? brand.keywordGroups
+      : [];
+    if (!Array.isArray(brand.keywordGroups)) {
+      brand.keywordGroups = keywordGroups;
+    }
+
+    const existingGroupIndex = keywordGroups.findIndex(
+      (g) => normalizeName(g?.name) === (targetName || normalizeName(newGroup.name))
+    );
+
+    if (existingGroupIndex >= 0) {
+      // Update existing group
+      brand.keywordGroups[existingGroupIndex] = newGroup;
+    } else {
+      // Add new group
+      brand.keywordGroups.push(newGroup);
+    }
+
+    // Deduplicate any lingering groups with identical names (case-insensitive)
+    const seenNames = new Set();
+    brand.keywordGroups = brand.keywordGroups.filter((group) => {
+      const key = normalizeName(group?.name);
+      if (!key || seenNames.has(key)) {
+        return false;
+      }
+      seenNames.add(key);
+      return true;
+    });
+
+    // Save the brand
+    await brand.save();
+
+    console.log('[addKeywordGroup] Updated brand:', {
+      brandName: brand.brandName,
+      keywordGroupsCount: brand.keywordGroups.length,
+      addedOrUpdatedGroup: newGroup.name,
+    });
+
+    return res.json({
+      success: true,
+      message: existingGroupIndex >= 0
+        ? "Keyword group updated successfully"
+        : "Keyword group added successfully",
+      brand,
+    });
+  } catch (err) {
+    console.error("Add Keyword Group Error:", err);
     res.status(500).json({ success: false, message: err.message });
   }
 };

@@ -7,6 +7,7 @@ import {
   getBrandsByUser,
   deleteBrand,
   getAssignedBrands,
+  addKeywordGroup,
 } from "../controllers/brand.controller.js";
 import { protect, isAdmin } from "../middleware/auth.js";
 import { canManageBrand } from "../middleware/brandAccess.js";
@@ -19,6 +20,7 @@ router.post("/assign-users", protect, isAdmin, assignUsersToBrand);
 router.post("/delete", protect, isAdmin, deleteBrand);
 
 router.post("/configure", protect, canManageBrand, configureBrand);
+router.post("/add-keywordgrp", protect, canManageBrand, addKeywordGroup);
 
 router.get("/user/:email", protect, getBrandsByUser);
 router.get("/assigned/:email", protect, getAssignedBrands);
